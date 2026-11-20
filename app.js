@@ -1,4 +1,4 @@
-const APP_VERSION = '1.3.0'; // bump on every change (also VERSION in sw.js)
+const APP_VERSION = '1.3.1'; // bump on every change (also VERSION in sw.js)
 const IDENTITY_CACHE = 'identity'; // shared with sw.js
 const DEFAULT_NAME = 'My App';
 const url = (p) => new URL(p, document.baseURI).href;
@@ -57,7 +57,6 @@ async function applyIdentity() {
       $('viewer-img').src = URL.createObjectURL(await res.blob());
       $('viewer-img').alt = name;
       showViewer(true);
-      $('view-photo').hidden = false;
     }
   }
 }
@@ -66,8 +65,6 @@ function showViewer(on) {
   $('viewer').hidden = !on;
   $('card').hidden = on;
 }
-$('edit').addEventListener('click', () => showViewer(false));
-$('view-photo').addEventListener('click', () => showViewer(true));
 
 // Load the photo already shrunk so its shorter side is `size` px.
 // Drawing a full-size phone photo (e.g. 4000x3000+) onto a canvas can come
