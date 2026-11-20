@@ -10,6 +10,11 @@ const status = $('status');
 const installBtn = $('install');
 let pendingPreviewUrl = null;
 
+// True when opened as the installed app (not in a normal browser tab).
+const isInstalledApp =
+  matchMedia('(display-mode: standalone), (display-mode: minimal-ui), (display-mode: window-controls-overlay), (display-mode: fullscreen)').matches ||
+  navigator.standalone === true;
+
 function setStatus(msg) { status.textContent = msg; }
 
 async function loadIdentity() {
@@ -26,12 +31,21 @@ async function applyIdentity() {
     const blob = await (await caches.open(IDENTITY_CACHE)).match(url('__identity/icon-512.png'));
     if (blob) iconSrc = URL.createObjectURL(await blob.blob());
   }
-  document.title = name;
-  $('preview-name').textContent = name;
-  $('preview-icon').src = iconSrc;
-  $('favicon').href = iconSrc;
+  // iOS "Add to Home Screen" reads these tags, so they always carry your choice.
   $('apple-icon').href = iconSrc;
+  $('apple-title').content = name;
   nameInput.value = id?.name || '';
+
+  // Only the installed app shows your photo and name; the website keeps the default look.
+  const shownName = isInstalledApp ? name : DEFAULT_NAME;
+  const shownIcon = isInstalledApp ? iconSrc : 'icons/default-512.png';
+  document.title = shownName;
+  $('preview-name').textContent = shownName;
+  $('preview-icon').src = shownIcon;
+  $('favicon').href = isInstalledApp ? iconSrc : 'icons/default-192.png';
+  $('mode-note').textContent = isInstalledApp
+    ? ''
+    : 'This website keeps the default look. Your photo and name appear in the installed app.';
 }
 
 // Center-crop the photo to a square and render it at `size` px as PNG.
@@ -93,7 +107,9 @@ form.addEventListener('submit', async (e) => {
       new Response(JSON.stringify(config), { headers: { 'Content-Type': 'application/json' } }));
 
     await ensureControlled();
-    setStatus('Saved! Reloading so the app picks up the new icon and name…');
+    setStatus(isInstalledApp
+      ? 'Saved! Reloading…'
+      : 'Saved! Open the installed app to see your photo and name. Reloading…');
     // Reload so Chrome re-reads the (service-worker generated) manifest.
     setTimeout(() => location.reload(), 600);
   } catch (err) {

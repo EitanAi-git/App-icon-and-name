@@ -85,3 +85,5 @@ button.primary, button.install {
 .status { min-height: 1.5em; color: var(--muted); font-size: 0.9rem; }
 details { margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
 summary { cursor: pointer; }
+.mode-note { margin: -12px 0 20px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+.mode-note:empty { display: none; }
