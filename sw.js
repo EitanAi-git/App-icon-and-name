@@ -1,6 +1,6 @@
 // Service worker: serves a *customised* manifest and icons from Cache Storage,
 // so the installed app picks up the name and photo you chose.
-const VERSION = '1.2.0'; // keep in sync with APP_VERSION in app.js
+const VERSION = '1.3.0'; // keep in sync with APP_VERSION in app.js
 const SHELL_CACHE = `shell-${VERSION}`;
 const IDENTITY_CACHE = 'identity'; // shared with app.js
 const SHELL = [

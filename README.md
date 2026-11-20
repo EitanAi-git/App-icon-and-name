@@ -34,7 +34,7 @@ reinstall.
 - `sw.js` (the service worker) intercepts requests for the manifest and returns
   a version with your name and icons (`icons/custom-*.png`, also served from the cache).
 
-Only the **installed app** shows your photo and name (window title, page icon
-and preview). The website in a normal browser tab keeps the default look.
+Only the **installed app** shows your photo and name: it opens straight to
+your photo, full screen (tap **Edit** to change it). The website in a normal browser tab keeps the default look.
 
 Everything stays in your browser — nothing is uploaded anywhere.
