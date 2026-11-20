@@ -1,4 +1,4 @@
-const APP_VERSION = '1.2.0'; // bump on every change (also VERSION in sw.js)
+const APP_VERSION = '1.3.0'; // bump on every change (also VERSION in sw.js)
 const IDENTITY_CACHE = 'identity'; // shared with sw.js
 const DEFAULT_NAME = 'My App';
 const url = (p) => new URL(p, document.baseURI).href;
@@ -46,19 +46,112 @@ async function applyIdentity() {
   $('favicon').href = isInstalledApp ? iconSrc : 'icons/default-192.png';
   $('mode-note').textContent = isInstalledApp
     ? ''
-    : 'This website keeps the default look. Your photo and name appear in the installed app.';
+    : 'This website keeps the default look. Opening the installed app shows your photo.';
+
+  // Installed app: open straight to the photo, full screen.
+  if (isInstalledApp && id?.hasIcon) {
+    const cache = await caches.open(IDENTITY_CACHE);
+    const res = (await cache.match(url('__identity/photo.jpg'))) ||
+      (await cache.match(url('__identity/icon-512.png')));
+    if (res) {
+      $('viewer-img').src = URL.createObjectURL(await res.blob());
+      $('viewer-img').alt = name;
+      showViewer(true);
+      $('view-photo').hidden = false;
+    }
+  }
 }
 
-// Center-crop the photo to a square and render it at `size` px as PNG.
-function renderIcon(bitmap, size) {
+function showViewer(on) {
+  $('viewer').hidden = !on;
+  $('card').hidden = on;
+}
+$('edit').addEventListener('click', () => showViewer(false));
+$('view-photo').addEventListener('click', () => showViewer(true));
+
+// Load the photo already shrunk so its shorter side is `size` px.
+// Drawing a full-size phone photo (e.g. 4000x3000+) onto a canvas can come
+// out black on Android, so the browser's decoder does the shrinking instead.
+function loadImageElement(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const src = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(src); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(src); reject(new Error('decode failed')); };
+    img.src = src;
+  });
+}
+
+async function loadScaled(file, img, size, fit = 'cover') {
+  // naturalWidth/Height already account for the photo's rotation (EXIF).
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const scale = size / (fit === 'cover' ? Math.min(w, h) : Math.max(w, h));
+  if (scale >= 1) return img;
+  try {
+    return await createImageBitmap(file, {
+      resizeWidth: Math.round(w * scale),
+      resizeHeight: Math.round(h * scale),
+      resizeQuality: 'high',
+      imageOrientation: 'from-image',
+    });
+  } catch {
+    return img;
+  }
+}
+
+// Center-crop to a square and render at `size` px.
+function drawSquare(source, size) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const side = Math.min(bitmap.width, bitmap.height);
-  const sx = (bitmap.width - side) / 2;
-  const sy = (bitmap.height - side) / 2;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const w = source.naturalWidth || source.width;
+  const h = source.naturalHeight || source.height;
+  const side = Math.min(w, h);
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
+  ctx.drawImage(source, (w - side) / 2, (h - side) / 2, side, side, 0, 0, size, size);
+  return canvas;
+}
+
+// True if the canvas is (almost) entirely black or transparent.
+function looksBlank(canvas) {
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < data.length; i += 4 * 97) {
+    if (data[i + 3] > 10 && data[i] + data[i + 1] + data[i + 2] > 30) return false;
+  }
+  return true;
+}
+
+// The full photo (not cropped), longest side at most `maxSide` px, as JPEG.
+async function renderPhoto(file, img, maxSide) {
+  const src = await loadScaled(file, img, maxSide, 'contain');
+  const canvas = document.createElement('canvas');
+  canvas.width = src.naturalWidth || src.width;
+  canvas.height = src.naturalHeight || src.height;
+  canvas.getContext('2d', { willReadFrequently: true }).drawImage(src, 0, 0, canvas.width, canvas.height);
+  if (looksBlank(canvas) && src !== img) {
+    // Same fallback as the icon: draw from the <img> directly.
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  }
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+}
+
+async function renderIcon(file, img, size) {
+  let canvas = drawSquare(await loadScaled(file, img, size), size);
+  // Fallback: shrink in steps from the <img> if the first attempt came out black.
+  if (looksBlank(canvas)) {
+    let src = img;
+    let cur = Math.max(img.naturalWidth, img.naturalHeight);
+    while (cur / 2 > size * 2) {
+      cur = Math.round(cur / 2);
+      const step = document.createElement('canvas');
+      const k = cur / Math.max(img.naturalWidth, img.naturalHeight);
+      step.width = Math.round(img.naturalWidth * k);
+      step.height = Math.round(img.naturalHeight * k);
+      step.getContext('2d').drawImage(src, 0, 0, step.width, step.height);
+      src = step;
+    }
+    canvas = drawSquare(src, size);
+  }
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
@@ -95,12 +188,15 @@ form.addEventListener('submit', async (e) => {
   try {
     setStatus('Saving…');
     if (file) {
-      const bitmap = await createImageBitmap(file);
+      const img = await loadImageElement(file);
       for (const size of [192, 512]) {
-        const blob = await renderIcon(bitmap, size);
+        const blob = await renderIcon(file, img, size);
         await cache.put(url(`__identity/icon-${size}.png`),
           new Response(blob, { headers: { 'Content-Type': 'image/png' } }));
       }
+      const photo = await renderPhoto(file, img, 2048);
+      await cache.put(url('__identity/photo.jpg'),
+        new Response(photo, { headers: { 'Content-Type': 'image/jpeg' } }));
       hasIcon = true;
     }
     const config = { name, hasIcon, version: Date.now() };
@@ -109,7 +205,7 @@ form.addEventListener('submit', async (e) => {
 
     await ensureControlled();
     setStatus(isInstalledApp
-      ? 'Saved! Reloading…'
+      ? 'Saved! Reloading to show your photo…'
       : 'Saved! Open the installed app to see your photo and name. Reloading…');
     // Reload so Chrome re-reads the (service-worker generated) manifest.
     setTimeout(() => location.reload(), 600);
