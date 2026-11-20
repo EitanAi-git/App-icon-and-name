@@ -1,6 +1,7 @@
 // Service worker: serves a *customised* manifest and icons from Cache Storage,
 // so the installed app picks up the name and photo you chose.
-const SHELL_CACHE = 'shell-v1';
+const VERSION = '1.2.0'; // keep in sync with APP_VERSION in app.js
+const SHELL_CACHE = `shell-${VERSION}`;
 const IDENTITY_CACHE = 'identity'; // shared with app.js
 const SHELL = [
   './',
@@ -15,7 +16,8 @@ const SHELL = [
 const scopeUrl = (path) => new URL(path, self.registration.scope).href;
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)));
+  event.waitUntil(caches.open(SHELL_CACHE).then((c) =>
+    c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))));
   self.skipWaiting();
 });
 
@@ -81,7 +83,8 @@ self.addEventListener('fetch', (event) => {
   // App shell: network first, fall back to cache (works offline).
   event.respondWith((async () => {
     try {
-      const res = await fetch(event.request);
+      // 'no-cache' revalidates with the server so updates show up right away.
+      const res = await fetch(event.request, { cache: 'no-cache' });
       if (res.ok && url.href.startsWith(self.registration.scope)) {
         const copy = res.clone();
         caches.open(SHELL_CACHE).then((c) => c.put(event.request, copy));
@@ -91,4 +94,8 @@ self.addEventListener('fetch', (event) => {
       return (await caches.match(event.request, { ignoreSearch: true })) || Response.error();
     }
   })());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'version') event.source.postMessage({ type: 'version', version: VERSION });
 });

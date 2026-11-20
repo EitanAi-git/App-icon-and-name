@@ -1,3 +1,4 @@
+const APP_VERSION = '1.2.0'; // bump on every change (also VERSION in sw.js)
 const IDENTITY_CACHE = 'identity'; // shared with sw.js
 const DEFAULT_NAME = 'My App';
 const url = (p) => new URL(p, document.baseURI).href;
@@ -140,8 +141,25 @@ installBtn.addEventListener('click', async () => {
 });
 window.addEventListener('appinstalled', () => setStatus('Installed!'));
 
+function showVersion(swVersion) {
+  const mode = isInstalledApp ? 'installed app' : 'browser tab';
+  $('version').textContent = `Version ${APP_VERSION} · worker ${swVersion || '…'} · ${mode}`;
+}
+showVersion();
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(async () => {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'version') showVersion(e.data.version);
+  });
+  navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage('version'));
+  // A new worker took over (the site was updated): reload once to use the new files.
+  let reloading = false;
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !reloading) { reloading = true; location.reload(); }
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(async (reg) => {
+    reg.update();
     // First visit: once the worker takes control, reload once so the
     // manifest is served by it (needed for a customised icon at install time).
     if (!navigator.serviceWorker.controller && (await loadIdentity())) {
