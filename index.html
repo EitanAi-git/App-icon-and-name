@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My App</title>
+  <meta name="theme-color" content="#6366f1">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" id="favicon" href="icons/default-192.png">
+  <link rel="apple-touch-icon" id="apple-icon" href="icons/default-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Customize this app</h1>
+    <p class="sub">Pick a photo and a name. They become the app's icon and the label under it.</p>
+
+    <div class="preview">
+      <div class="tile">
+        <img id="preview-icon" src="icons/default-512.png" alt="Current app icon">
+        <span id="preview-name">My App</span>
+      </div>
+    </div>
+
+    <form id="form">
+      <label class="field">
+        <span>Photo</span>
+        <input id="photo" type="file" accept="image/*">
+      </label>
+      <label class="field">
+        <span>App name</span>
+        <input id="name" type="text" maxlength="30" placeholder="My App" required>
+      </label>
+      <div class="row">
+        <button type="submit" class="primary">Save</button>
+        <button type="button" id="reset">Reset to default</button>
+      </div>
+    </form>
+
+    <button id="install" class="install" hidden>Install app</button>
+    <p id="status" class="status" role="status"></p>
+
+    <details>
+      <summary>How updates reach the installed app</summary>
+      <p>Customize <em>before</em> installing for the cleanest result. If the app is already
+        installed, open it after saving: Chrome checks the app's manifest and asks you to
+        confirm the new name/icon (this can take a launch or two). If it doesn't update,
+        uninstall and reinstall.</p>
+    </details>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
